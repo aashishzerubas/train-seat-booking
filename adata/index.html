@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>🚆 Train Seat Booking — Live</title>
+<style>
+  :root{
+    --bg:#f4f7fb; --card:#fff; --accent:#1976d2; --ok:#27ae60; --danger:#e53935;
+    --seat-size:54px;
+  }
+  *{box-sizing:border-box}
+  body{font-family:Inter,Segoe UI,Arial; margin:0; background:var(--bg); color:#222}
+  header{background:linear-gradient(90deg,#0b67c6 0%, #1976d2 100%); color:#fff; padding:18px 20px}
+  header h1{margin:0;font-size:20px}
+  .wrap{display:grid; grid-template-columns: 1fr 380px; gap:18px; padding:18px; max-width:1200px; margin:18px auto}
+  .card{background:var(--card); border-radius:12px; padding:16px; box-shadow:0 8px 24px rgba(5,30,60,0.06)}
+  .left{min-height:520px}
+  .train-meta{display:flex; gap:12px; align-items:center; justify-content:space-between; margin-bottom:12px}
+  .train-meta .info{display:flex; gap:12px; align-items:center}
+  .train-name{font-weight:700; font-size:16px}
+  .small{font-size:13px;color:#555}
+  #seat-container{
+    display:grid;
+    grid-template-columns: 50px 50px 50px 20px 50px; /* 3 seats + aisle + 1 seat */
+    gap:10px 10px;
+    justify-content:start;
+    padding:12px;
+    background:#f7f9fc;
+    border-radius:10px;
+  }
+  .seat{
+    width:var(--seat-size);
+    height:var(--seat-size);
+    border-radius:8px;
+    display:flex; align-items:center; justify-content:center;
+    font-weight:700; color:#fff; cursor:pointer; user-select:none;
+    transition: transform .12s ease, box-shadow .12s;
+  }
+  .seat:hover{transform:translateY(-4px)}
+  .available{background:var(--ok)}
+  .selected{background:#1976d2}
+  .booked{background:var(--danger); cursor:default; opacity:0.95}
+  .aisle{width:20px; height:var(--seat-size); background:transparent}
+  /* Right column */
+  .right .section{margin-bottom:14px}
+  label{display:block; font-size:13px; margin-bottom:6px}
+  input,select,textarea{width:100%; padding:8px 10px; border-radius:8px; border:1px solid #ddd; font-size:14px}
+  button{background:var(--accent); color:#fff; padding:10px 12px; border-radius:8px; border:none; cursor:pointer; font-weight:700}
+  button:disabled{opacity:.5; cursor:not-allowed}
+  .selected-list{display:flex; gap:8px; flex-wrap:wrap}
+  .chip{background:#eef6ff; padding:6px 10px; border-radius:999px; font-weight:600; color:#0b4f86}
+  .pass-table{width:100%; border-collapse:collapse; margin-top:8px}
+  .pass-table th, .pass-table td{font-size:13px; padding:8px; text-align:left; border-bottom:1px solid #eee}
+  .rules{font-size:14px; line-height:1.5}
+  .muted{color:#666; font-size:13px}
+  .status-line{display:flex; gap:10px; align-items:center}
+  .legend{display:flex; gap:10px; align-items:center}
+  .legend .item{display:flex; gap:6px; align-items:center}
+  .box{width:16px; height:16px; border-radius:4px}
+  .clearfix{clear:both}
+  .bottom-row{display:flex; gap:10px; justify-content:space-between; align-items:center; margin-top:12px}
+  @media (max-width:920px){
+    .wrap{grid-template-columns:1fr; padding:12px}
+    .right{order:2}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>🚆 Train Seat Booking — Live Preview</h1>
+</header>
+
+<div class="wrap">
+  <!-- LEFT: Seats + Train info -->
+  <div class="card left">
+    <div class="train-meta">
+      <div class="info">
+        <div>
+          <div class="train-name">Train: 12705 — Express Arrow</div>
+          <div class="small">Route: Chennai Central (MAS) → Bengaluru (SBC)</div>
+          <div class="small">Date: <strong id="travelDate">2025-11-15</strong> &nbsp;|&nbsp; Departure: <strong id="departureTime">09:30</strong></div>
+        </div>
+      </div>
+      <div class="small muted">Coach: A1 &nbsp; • &nbsp; Class: Second Seating</div>
+    </div>
+
+    <div class="card" style="padding:12px; margin-bottom:12px">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <div style="font-weight:700">Seat Layout</div>
+          <div class="small muted">Click to select seats — then assign passenger details and Pay Now.</div>
+        </div>
+        <div class="legend">
+          <div class="item"><div class="box" style="background:var(--ok)"></div> <span class="small">Available</span></div>
+          <div class="item"><div class="box" style="background:#1976d2"></div> <span class="small">Selected</span></div>
+          <div class="item"><div class="box" style="background:var(--danger)"></div> <span class="small">Booked</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="seat-container" aria-label="seat-grid"></div>
+
+    <div style="margin-top:12px; display:flex; justify-content:space-between; gap:10px; align-items:center">
+      <div class="small muted">Price per seat: <strong>₹250</strong></div>
+      <div class="small muted">Total bookings persist in your browser (localStorage).</div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Booking panel -->
+  <aside class="card right">
+    <div class="section">
+      <div style="font-weight:800; font-size:16px">Selected Seats</div>
+      <div class="selected-list" id="selectedList" style="margin-top:8px">— none —</div>
+    </div>
+
+    <div class="section">
+      <div style="font-weight:700">Assign Passenger Details</div>
+      <div class="small muted" style="margin-bottom:8px">Choose a seat from Selected Seats, fill details, then click <strong>Assign</strong>.</div>
+
+      <label for="seatSelect">Seat</label>
+      <select id="seatSelect"><option value="">(choose seat)</option></select>
+
+      <label for="pName" style="margin-top:8px">Passenger name</label>
+      <input id="pName" placeholder="Full name" />
+
+      <label for="pAge" style="margin-top:8px">Age</label>
+      <input id="pAge" type="number" min="0" />
+
+      <label for="pGender" style="margin-top:8px">Gender</label>
+      <select id="pGender">
+        <option value="">Select</option><option>Male</option><option>Female</option><option>Other</option>
+      </select>
+
+      <label for="pPhone" style="margin-top:8px">Phone</label>
+      <input id="pPhone" placeholder="10-digit phone" />
+
+      <div style="display:flex; gap:8px; margin-top:10px">
+        <button id="assignBtn">Assign</button>
+        <button id="clearSelection" style="background:#6c757d">Clear Selection</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div style="font-weight:700">Passengers & Booking Summary</div>
+      <table class="pass-table" id="passTable">
+        <thead><tr><th>Seat</th><th>Name</th><th>Age</th><th>Phone</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="bottom-row">
+        <div>
+          <div class="small muted">Total Seats:</div>
+          <div id="totalSeats" style="font-weight:800">0</div>
+        </div>
+        <div>
+          <div class="small muted">Amount</div>
+          <div id="totalAmount" style="font-weight:800">₹0</div>
+        </div>
+      </div>
+      <div style="margin-top:12px; display:flex; gap:8px">
+        <button id="payBtn" disabled>Pay Now</button>
+        <button id="resetBtn" style="background:#f44336">Reset All</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div style="font-weight:700">Train Rules & Regulations</div>
+      <ol class="rules" style="margin-top:8px">
+        <li>Ticket is non-transferable — ID to be carried during travel.</li>
+        <li>Boarding begins 30 minutes before departure; coach gate closes 5 minutes prior.</li>
+        <li>Seats are allotted on a first-come-first-served basis for this demo.</li>
+        <li>Eating inside the coach is permitted; please keep area clean and dispose waste responsibly.</li>
+        <li>Smoking, intoxication, and offensive behavior are strictly prohibited onboard.</li>
+        <li>Refunds/cancellations must be requested at least 24 hours before departure (demo rule).</li>
+        <li>Children under 5 may travel free but must be accompanied by an adult.</li>
+        <li>Follow conductor’s instructions. Failure to do so may result in removal from train.</li>
+        <li>Large luggage should be stored in designated areas; do not block aisles or exits.</li>
+        <li>In case of emergency follow the crew and use emergency exits only when instructed.</li>
+      </ol>
+    </div>
+
+  </aside>
+</div>
+
+<script>
+/* ---------- Data & Persistence ---------- */
+const PRICE = 250;
+const STORAGE_KEY = 'train_booking_v1';
+
+/* initialize seats 1..80 */
+function makeInitialSeats(){
+  const arr = [];
+  for(let i=1;i<=80;i++){
+    arr.push({seat_no: String(i), status:'available', passenger:null});
+  }
+  return arr;
+}
+
+/* load or create data in localStorage */
+function loadState(){
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if(!raw){
+    const initial = makeInitialSeats();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
+    return initial;
+  }
+  try{
+    return JSON.parse(raw);
+  }catch(e){
+    const initial = makeInitialSeats();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
+    return initial;
+  }
+}
+function saveState(state){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+/* ---------- UI rendering ---------- */
+let state = loadState();
+const seatContainer = document.getElementById('seat-container');
+const selectedList = document.getElementById('selectedList');
+const seatSelect = document.getElementById('seatSelect');
+const passTableBody = document.querySelector('#passTable tbody');
+const totalSeatsEl = document.getElementById('totalSeats');
+const totalAmountEl = document.getElementById('totalAmount');
+const payBtn = document.getElementById('payBtn');
+
+let selectedSeats = new Set(); // ids (seat_no strings) currently selected (not yet assigned)
+
+/* render seat grid */
+function renderSeats(){
+  seatContainer.innerHTML = '';
+  state.forEach((s, idx) => {
+    const div = document.createElement('div');
+    div.className = 'seat';
+    if(s.status==='available') div.classList.add('available');
+    else div.classList.add('booked');
+
+    div.textContent = s.seat_no;
+    div.dataset.seat = s.seat_no;
+
+    // click behavior
+    if(s.status==='available'){
+      div.addEventListener('click', ()=> {
+        toggleSelect(s.seat_no);
+      });
+    }
+
+    seatContainer.appendChild(div);
+
+    // after every 4th element in layout we need to ensure aisle after 3 seats.
+    // We fill grid columns manually: we inserted seats sequentially, but layout is handled by CSS grid-template columns.
+    // To create aisle after the 3rd seat of each group of 4, insert an aisle element when index%4===2 (0-based).
+    if ((idx % 4) === 2) {
+      const aisle = document.createElement('div');
+      aisle.className = 'aisle';
+      seatContainer.appendChild(aisle);
+    }
+  });
+  updateSelectedList();
+  renderPassengers();
+  updateSummary();
+}
+
+/* toggle selection of an available seat */
+function toggleSelect(seatNo){
+  if(selectedSeats.has(seatNo)) selectedSeats.delete(seatNo);
+  else selectedSeats.add(seatNo);
+  updateSelectedList();
+}
+
+/* update selected list UI and seatSelect dropdown */
+function updateSelectedList(){
+  selectedList.innerHTML = '';
+  seatSelect.innerHTML = '<option value="">(choose seat)</option>';
+  const arr = Array.from(selectedSeats).sort((a,b)=>Number(a)-Number(b));
+  if(arr.length===0){
+    selectedList.textContent = '— none —';
+  } else {
+    arr.forEach(s=>{
+      const chip = document.createElement('div');
+      chip.className='chip';
+      chip.textContent = s;
+      selectedList.appendChild(chip);
+
+      const opt = document.createElement('option');
+      opt.value = s;
+      opt.text = s;
+      seatSelect.appendChild(opt);
+    });
+  }
+  // visual highlight selected on grid
+  document.querySelectorAll('.seat').forEach(el=>{
+    const sn = el.dataset.seat;
+    el.classList.remove('selected');
+    if(selectedSeats.has(sn)) el.classList.add('selected');
+  });
+}
+
+/* render passenger assignments table */
+function renderPassengers(){
+  passTableBody.innerHTML = '';
+  let count=0;
+  state.forEach(s=>{
+    if(s.status==='booked' && s.passenger){
+      count++;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${s.seat_no}</td><td>${escapeHtml(s.passenger.name)}</td><td>${s.passenger.age}</td><td>${escapeHtml(s.passenger.phone)}</td>`;
+      passTableBody.appendChild(tr);
+    }
+  });
+}
+
+/* update total summary and pay button state */
+function updateSummary(){
+  const bookedCount = state.filter(s=>s.status==='booked').length;
+  totalSeatsEl.textContent = bookedCount;
+  totalAmountEl.textContent = `₹${bookedCount * PRICE}`;
+  // enable pay if there is at least one booked seat
+  payBtn.disabled = bookedCount===0;
+}
+
+/* ---------- passenger assign flow ---------- */
+const assignBtn = document.getElementById('assignBtn');
+const clearSelBtn = document.getElementById('clearSelection');
+
+assignBtn.addEventListener('click', ()=>{
+  const seatNo = seatSelect.value;
+  const name = document.getElementById('pName').value.trim();
+  const age = document.getElementById('pAge').value.trim();
+  const gender = document.getElementById('pGender').value;
+  const phone = document.getElementById('pPhone').value.trim();
+
+  if(!seatNo){ alert('Choose a seat from "Selected Seats".'); return; }
+  if(!name || !age || !gender || !phone){ alert('Fill all passenger fields.'); return; }
+  if(!/^\d{10}$/.test(phone)){ alert('Enter a valid 10-digit phone number.'); return; }
+  const idx = state.findIndex(x=>x.seat_no===seatNo);
+  if(idx===-1) { alert('Seat not found'); return; }
+
+  // mark booked and attach passenger
+  state[idx].status = 'booked';
+  state[idx].passenger = {name, age:Number(age), gender, phone};
+  saveState(state);
+
+  // clear selection set and inputs
+  selectedSeats.delete(seatNo);
+  document.getElementById('pName').value='';
+  document.getElementById('pAge').value='';
+  document.getElementById('pGender').value='';
+  document.getElementById('pPhone').value='';
+  updateSelectedList();
+  renderSeats();
+});
+
+/* clear selection (unselect currently selected seats) */
+clearSelBtn.addEventListener('click', ()=>{
+  selectedSeats.clear();
+  updateSelectedList();
+});
+
+/* Pay Now simulation */
+payBtn.addEventListener('click', ()=>{
+  const bookedNow = state.filter(s => s.status==='booked' && s.passenger);
+  if(bookedNow.length===0){ alert('No booked seats to pay for. Assign passengers first.'); return; }
+  // simulate payment
+  payBtn.disabled=true;
+  payBtn.textContent='Processing...';
+  setTimeout(()=>{
+    payBtn.textContent='Pay Now';
+    alert('Payment successful! Booking confirmed — check passengers list.');
+    saveState(state);
+    renderSeats();
+  }, 1200);
+});
+
+/* Reset all bookings (danger) */
+document.getElementById('resetBtn').addEventListener('click', ()=>{
+  if(!confirm('Reset will clear all bookings & passenger data in this browser. Continue?')) return;
+  state = makeInitialSeats();
+  saveState(state);
+  selectedSeats.clear();
+  renderSeats();
+});
+
+/* simple escape for table */
+function escapeHtml(s){
+  return String(s).replace(/[&<>"]/g, ch=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[ch]));
+}
+
+/* initial render */
+renderSeats();
+
+/* Optional: Live wire demo helper (shows storage console) */
+window.addEventListener('storage', (e)=>{
+  if(e.key===STORAGE_KEY) {
+    state = loadState();
+    renderSeats();
+  }
+});
+</script>
+</body>
+</html>
